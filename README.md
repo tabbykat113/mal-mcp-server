@@ -18,6 +18,8 @@ This server exposes 7 read-only tools to any MCP-compatible client (Claude Deskt
 
 All tools return human-readable formatted text with scores, genres, synopses, MAL links, and more.
 
+The 5 list-returning tools support **server-side filtering** — genre, score, media type, status, source, and more. The server fetches up to 100 results from MAL and filters client-side, so the AI only sees what matches. This dramatically reduces context pollution for filtered queries.
+
 ## Prerequisites
 
 - **Node.js** 18+ (uses native `fetch`)
@@ -124,10 +126,41 @@ Once connected, you can ask your AI things like:
 - *"What are the top rated manga?"*
 - *"Look up the manga Berserk on MAL"*
 - *"What anime aired in summer 2024?"*
+- *"Show me action anime this season with a score above 7"*
+- *"What are the top rated romance comedy anime?"* (uses genre_mode: "and")
+- *"What new anime premiered this winter?"* (uses current_season_only)
 
 The AI will call the appropriate tool(s) and present the results.
 
 ## Tool Details
+
+### Shared Filter Parameters
+
+The 5 list-returning tools (`mal_search_anime`, `mal_anime_ranking`, `mal_anime_seasonal`, `mal_search_manga`, `mal_manga_ranking`) all support server-side filtering. When any filter is active, the server fetches up to 100 results from MAL and returns only those that match.
+
+**Common filters (all list tools):**
+- `genres_include` (string[]): Only include items with matching genres (case-insensitive). See `genre_mode`.
+- `genres_exclude` (string[]): Exclude items with any of these genres (case-insensitive)
+- `genre_mode` ("or" | "and"): How `genres_include` matches — "or" = any genre matches (default), "and" = all genres must be present
+- `min_score` (number): Minimum mean score, 0-10
+- `min_members` (number): Minimum MAL list members
+
+**Anime-only filters:**
+- `media_type` (string[]): `"tv"`, `"ova"`, `"movie"`, `"ona"`, `"special"`, `"music"`
+- `status` (string): `"currently_airing"`, `"finished_airing"`, `"not_yet_aired"`
+- `source` (string[]): `"manga"`, `"light_novel"`, `"original"`, `"visual_novel"`, `"game"`, `"other"`
+
+**Seasonal-only filter:**
+- `current_season_only` (boolean): Only show anime whose `start_season` matches the queried season (filters out continuing shows like long-runners)
+
+**Manga-only filters:**
+- `media_type` (string[]): `"manga"`, `"novel"`, `"one_shot"`, `"doujinshi"`, `"manhwa"`, `"manhua"`, `"oel"`
+- `status` (string): `"currently_publishing"`, `"finished"`, `"not_yet_published"`
+
+When filters are active, the output includes a summary line like:
+```
+Showing 8 results (filtered from 100 scanned, 1 page) | Filters: genres(AND)=Action,Romance, min_score>=7.5
+```
 
 ### mal_search_anime
 
@@ -138,6 +171,7 @@ Parameters:
 - `limit` (number): 1-100, default 10
 - `offset` (number): pagination, default 0
 - `nsfw` (boolean): include NSFW results, default false
+- Plus [shared filters](#shared-filter-parameters) and anime-only filters
 
 ### mal_get_anime_details
 
@@ -148,7 +182,9 @@ Parameters:
 
 ### mal_anime_ranking
 
-Ranked lists. Available ranking types:
+Ranked lists. Filtered results keep their original MAL rank numbers.
+
+Available ranking types:
 - `all` — overall top anime
 - `airing` — top currently airing
 - `upcoming` — top upcoming
@@ -163,6 +199,7 @@ Parameters:
 - `ranking_type` (string): default "all"
 - `limit` (number): 1-100, default 10
 - `offset` (number): default 0
+- Plus [shared filters](#shared-filter-parameters) and anime-only filters
 
 ### mal_anime_seasonal
 
@@ -174,6 +211,7 @@ Parameters:
 - `sort` (string): "anime_score" | "anime_num_list_users" | "", default ""
 - `limit` (number): 1-100, default 10
 - `offset` (number): default 0
+- Plus [shared filters](#shared-filter-parameters), anime-only filters, and `current_season_only`
 
 ### mal_search_manga
 
@@ -184,6 +222,7 @@ Parameters:
 - `limit` (number): 1-100, default 10
 - `offset` (number): default 0
 - `nsfw` (boolean): default false
+- Plus [shared filters](#shared-filter-parameters) and manga-only filters
 
 ### mal_get_manga_details
 
@@ -194,12 +233,15 @@ Parameters:
 
 ### mal_manga_ranking
 
-Ranked manga lists. Available types: `all`, `manga`, `novels`, `oneshots`, `doujin`, `manhwa`, `manhua`, `bypopularity`, `favorite`.
+Ranked manga lists. Filtered results keep their original MAL rank numbers.
+
+Available types: `all`, `manga`, `novels`, `oneshots`, `doujin`, `manhwa`, `manhua`, `bypopularity`, `favorite`.
 
 Parameters:
 - `ranking_type` (string): default "all"
 - `limit` (number): 1-100, default 10
 - `offset` (number): default 0
+- Plus [shared filters](#shared-filter-parameters) and manga-only filters
 
 ## Architecture
 
@@ -207,6 +249,7 @@ Parameters:
 src/
 ├── index.ts     # MCP server setup + all 7 tool registrations
 ├── client.ts    # MAL API client (typed fetch wrapper)
+├── filters.ts   # Filter schemas, predicates, and filtered-fetch orchestrator
 ├── format.ts    # Response formatting (API data → readable text)
 └── types.ts     # TypeScript interfaces for MAL API responses
 ```

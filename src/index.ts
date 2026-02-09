@@ -11,7 +11,18 @@ import {
   formatMangaList,
   formatMangaRanking,
   formatMangaDetails,
+  formatFilterMeta,
 } from "./format.js";
+import {
+  animeFilterSchema,
+  seasonalAnimeFilterSchema,
+  mangaFilterSchema,
+  ANIME_FILTER_KEYS,
+  SEASONAL_FILTER_KEYS,
+  MANGA_FILTER_KEYS,
+  pickFilters,
+  filteredFetch,
+} from "./filters.js";
 
 // ─── Config ───
 
@@ -85,15 +96,18 @@ Args:
   - offset: Pagination offset (default: 0)
   - nsfw: Include NSFW results (default: false)
 
+Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, source, min_members. When filters are active, auto-paginates up to 150 results internally to fill your requested limit.
+
 Examples:
   - "cute animals anime" -> finds anime matching those keywords
   - "Spy x Family" -> finds that specific anime
-  - "studio ghibli" -> finds Ghibli works`,
+  - query: "fantasy", genres_include: ["Action"], min_score: 7.5 -> top-rated action fantasy anime`,
     inputSchema: {
       query: z.string().min(2).max(200).describe("Search text (anime title or keywords)"),
       limit: z.number().int().min(1).max(100).default(10).describe("Max results (default: 10)"),
       offset: z.number().int().min(0).default(0).describe("Pagination offset"),
       nsfw: z.boolean().default(false).describe("Include NSFW results"),
+      ...animeFilterSchema,
     },
     annotations: {
       readOnlyHint: true,
@@ -102,10 +116,20 @@ Examples:
       openWorldHint: true,
     },
   },
-  async ({ query, limit, offset, nsfw }) => {
+  async ({ query, limit, offset, nsfw, ...rest }) => {
     return handleToolError(async () => {
-      const result = await client.searchAnime(query, limit, offset, nsfw);
-      return formatAnimeList(result.data, result.paging);
+      const filters = pickFilters(rest as Record<string, unknown>, ANIME_FILTER_KEYS);
+      const { items, meta } = await filteredFetch({
+        fetchPage: (l, o) => client.searchAnime(query, l, o, nsfw),
+        filters,
+        requestedLimit: limit,
+        initialOffset: offset,
+      });
+      const body = formatAnimeList(items, { next: meta.hasMorePages ? "yes" : undefined });
+      if (meta.activeFilters.length > 0) {
+        return formatFilterMeta(meta) + "\n\n" + body;
+      }
+      return body;
     });
   },
 );
@@ -158,7 +182,9 @@ Ranking types:
   - "tv": Top TV series
   - "movie": Top anime movies
   - "bypopularity": Most popular (by number of list users)
-  - "favorite": Most favorited`,
+  - "favorite": Most favorited
+
+Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, source, min_members. Filtered results keep their original MAL rank numbers.`,
     inputSchema: {
       ranking_type: z.enum([
         "all", "airing", "upcoming", "tv", "ova",
@@ -166,6 +192,7 @@ Ranking types:
       ]).default("all").describe("Type of ranking"),
       limit: z.number().int().min(1).max(100).default(10).describe("Max results (default: 10)"),
       offset: z.number().int().min(0).default(0).describe("Pagination offset"),
+      ...animeFilterSchema,
     },
     annotations: {
       readOnlyHint: true,
@@ -174,10 +201,20 @@ Ranking types:
       openWorldHint: true,
     },
   },
-  async ({ ranking_type, limit, offset }) => {
+  async ({ ranking_type, limit, offset, ...rest }) => {
     return handleToolError(async () => {
-      const result = await client.getAnimeRanking(ranking_type, limit, offset);
-      return formatAnimeRanking(result.data, result.paging);
+      const filters = pickFilters(rest as Record<string, unknown>, ANIME_FILTER_KEYS);
+      const { items, meta } = await filteredFetch({
+        fetchPage: (l, o) => client.getAnimeRanking(ranking_type, l, o),
+        filters,
+        requestedLimit: limit,
+        initialOffset: offset,
+      });
+      const body = formatAnimeRanking(items, { next: meta.hasMorePages ? "yes" : undefined });
+      if (meta.activeFilters.length > 0) {
+        return formatFilterMeta(meta) + "\n\n" + body;
+      }
+      return body;
     });
   },
 );
@@ -199,13 +236,16 @@ Season months:
   - winter: Jan-Mar
   - spring: Apr-Jun
   - summer: Jul-Sep
-  - fall: Oct-Dec`,
+  - fall: Oct-Dec
+
+Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, source, min_members, current_season_only. Use current_season_only to filter out continuing shows and only show new premieres.`,
     inputSchema: {
       year: z.number().int().min(1900).max(2100).optional().describe("Year (defaults to current)"),
       season: z.enum(["winter", "spring", "summer", "fall"]).optional().describe("Season (defaults to current)"),
       sort: z.enum(["anime_score", "anime_num_list_users", ""]).default("").describe("Sort order"),
       limit: z.number().int().min(1).max(100).default(10).describe("Max results (default: 10)"),
       offset: z.number().int().min(0).default(0).describe("Pagination offset"),
+      ...seasonalAnimeFilterSchema,
     },
     annotations: {
       readOnlyHint: true,
@@ -214,14 +254,25 @@ Season months:
       openWorldHint: true,
     },
   },
-  async ({ year, season, sort, limit, offset }) => {
+  async ({ year, season, sort, limit, offset, ...rest }) => {
     return handleToolError(async () => {
       const current = getCurrentSeason();
       const y = year ?? current.year;
       const s = season ?? current.season;
-      const result = await client.getSeasonalAnime(y, s, sort, limit, offset);
-      return `Seasonal Anime: ${s} ${y}\n${"─".repeat(30)}\n\n` +
-        formatAnimeList(result.data, result.paging);
+      const filters = pickFilters(rest as Record<string, unknown>, SEASONAL_FILTER_KEYS);
+      const { items, meta } = await filteredFetch({
+        fetchPage: (l, o) => client.getSeasonalAnime(y, s, sort, l, o),
+        filters,
+        requestedLimit: limit,
+        initialOffset: offset,
+        seasonContext: { queriedYear: y, queriedSeason: s },
+      });
+      const header = `Seasonal Anime: ${s} ${y}\n${"─".repeat(30)}\n\n`;
+      const body = formatAnimeList(items, { next: meta.hasMorePages ? "yes" : undefined });
+      if (meta.activeFilters.length > 0) {
+        return header + formatFilterMeta(meta) + "\n\n" + body;
+      }
+      return header + body;
     });
   },
 );
@@ -242,12 +293,15 @@ Args:
   - query: Search text (min 2 chars).
   - limit: Max results, 1-100 (default: 10)
   - offset: Pagination offset (default: 0)
-  - nsfw: Include NSFW results (default: false)`,
+  - nsfw: Include NSFW results (default: false)
+
+Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, min_members. When filters are active, auto-paginates up to 150 results internally to fill your requested limit.`,
     inputSchema: {
       query: z.string().min(2).max(200).describe("Search text (manga title or keywords)"),
       limit: z.number().int().min(1).max(100).default(10).describe("Max results (default: 10)"),
       offset: z.number().int().min(0).default(0).describe("Pagination offset"),
       nsfw: z.boolean().default(false).describe("Include NSFW results"),
+      ...mangaFilterSchema,
     },
     annotations: {
       readOnlyHint: true,
@@ -256,10 +310,20 @@ Args:
       openWorldHint: true,
     },
   },
-  async ({ query, limit, offset, nsfw }) => {
+  async ({ query, limit, offset, nsfw, ...rest }) => {
     return handleToolError(async () => {
-      const result = await client.searchManga(query, limit, offset, nsfw);
-      return formatMangaList(result.data, result.paging);
+      const filters = pickFilters(rest as Record<string, unknown>, MANGA_FILTER_KEYS);
+      const { items, meta } = await filteredFetch({
+        fetchPage: (l, o) => client.searchManga(query, l, o, nsfw),
+        filters,
+        requestedLimit: limit,
+        initialOffset: offset,
+      });
+      const body = formatMangaList(items, { next: meta.hasMorePages ? "yes" : undefined });
+      if (meta.activeFilters.length > 0) {
+        return formatFilterMeta(meta) + "\n\n" + body;
+      }
+      return body;
     });
   },
 );
@@ -311,7 +375,9 @@ Ranking types:
   - "manhwa": Top Korean manhwa
   - "manhua": Top Chinese manhua
   - "bypopularity": Most popular
-  - "favorite": Most favorited`,
+  - "favorite": Most favorited
+
+Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, min_members. Filtered results keep their original MAL rank numbers.`,
     inputSchema: {
       ranking_type: z.enum([
         "all", "manga", "novels", "oneshots", "doujin",
@@ -319,6 +385,7 @@ Ranking types:
       ]).default("all").describe("Type of ranking"),
       limit: z.number().int().min(1).max(100).default(10).describe("Max results (default: 10)"),
       offset: z.number().int().min(0).default(0).describe("Pagination offset"),
+      ...mangaFilterSchema,
     },
     annotations: {
       readOnlyHint: true,
@@ -327,10 +394,20 @@ Ranking types:
       openWorldHint: true,
     },
   },
-  async ({ ranking_type, limit, offset }) => {
+  async ({ ranking_type, limit, offset, ...rest }) => {
     return handleToolError(async () => {
-      const result = await client.getMangaRanking(ranking_type, limit, offset);
-      return formatMangaRanking(result.data, result.paging);
+      const filters = pickFilters(rest as Record<string, unknown>, MANGA_FILTER_KEYS);
+      const { items, meta } = await filteredFetch({
+        fetchPage: (l, o) => client.getMangaRanking(ranking_type, l, o),
+        filters,
+        requestedLimit: limit,
+        initialOffset: offset,
+      });
+      const body = formatMangaRanking(items, { next: meta.hasMorePages ? "yes" : undefined });
+      if (meta.activeFilters.length > 0) {
+        return formatFilterMeta(meta) + "\n\n" + body;
+      }
+      return body;
     });
   },
 );

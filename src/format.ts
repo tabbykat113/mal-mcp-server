@@ -7,6 +7,7 @@ import type {
   MalMangaRankingItem,
   MalPaging,
 } from "./types.js";
+import type { FilterMeta } from "./filters.js";
 
 // ─── Shared Helpers ───
 
@@ -279,4 +280,16 @@ export function formatMangaDetails(manga: MalMangaNode): string {
   }
 
   return parts.join("\n");
+}
+
+// ─── Filter Metadata ───
+
+export function formatFilterMeta(meta: FilterMeta): string {
+  const filterStr = meta.activeFilters.join(", ");
+  const pages = meta.pagesScanned > 1 ? `${meta.pagesScanned} pages` : "1 page";
+  const showing = `Showing ${meta.totalMatched} results (filtered from ${meta.totalScanned} scanned, ${pages})`;
+  const more = meta.hasMorePages
+    ? " | More results may exist beyond scanned pages."
+    : "";
+  return `${showing} | Filters: ${filterStr}${more}`;
 }
