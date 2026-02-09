@@ -289,7 +289,7 @@ export function formatFilterMeta(meta: FilterMeta): string {
   const pages = meta.pagesScanned > 1 ? `${meta.pagesScanned} pages` : "1 page";
   const showing = `Showing ${meta.totalMatched} results (filtered from ${meta.totalScanned} scanned, ${pages})`;
   const more = meta.hasMorePages
-    ? " | More results may exist beyond scanned pages."
+    ? ` | More results may exist beyond scanned pages (use offset=${meta.nextOffset}).`
     : "";
   return `${showing} | Filters: ${filterStr}${more}`;
 }
