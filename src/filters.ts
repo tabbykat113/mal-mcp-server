@@ -9,6 +9,7 @@ export interface FilterMeta {
   pagesScanned: number;
   activeFilters: string[];
   hasMorePages: boolean;
+  nextOffset?: number;
 }
 
 // ─── Zod Schemas (spread into tool inputSchemas) ───
@@ -247,6 +248,11 @@ export async function filteredFetch<T extends { node: FilterableNode }>(options:
     }
   }
 
+  // Only report more pages if the API says so AND we got a full page back.
+  // If we got fewer than FILTERED_PAGE_SIZE items, the API has no more data
+  // regardless of what paging.next says.
+  const hasMore = !!result.paging.next && result.data.length >= FILTERED_PAGE_SIZE;
+
   return {
     items: matched.slice(0, requestedLimit),
     meta: {
@@ -254,7 +260,8 @@ export async function filteredFetch<T extends { node: FilterableNode }>(options:
       totalMatched: matched.length,
       pagesScanned: 1,
       activeFilters: buildActiveFilterDescriptions(filters),
-      hasMorePages: !!result.paging.next,
+      hasMorePages: hasMore,
+      nextOffset: hasMore ? initialOffset + result.data.length : undefined,
     },
   };
 }

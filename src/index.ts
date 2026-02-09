@@ -125,11 +125,14 @@ Examples:
         requestedLimit: limit,
         initialOffset: offset,
       });
-      const body = formatAnimeList(items, { next: meta.hasMorePages ? "yes" : undefined });
-      if (meta.activeFilters.length > 0) {
-        return formatFilterMeta(meta) + "\n\n" + body;
+      const filtered = meta.activeFilters.length > 0;
+      // When filters are active, formatFilterMeta handles pagination; don't duplicate in body
+      const body = formatAnimeList(items, { next: !filtered && meta.hasMorePages ? "yes" : undefined });
+      const hint = "\n\nTip: For broader discovery (e.g. by genre, theme, or popularity), try mal_anime_ranking or mal_anime_seasonal instead of keyword search.";
+      if (filtered) {
+        return formatFilterMeta(meta) + "\n\n" + body + hint;
       }
-      return body;
+      return body + hint;
     });
   },
 );
@@ -210,8 +213,9 @@ Supports server-side filters: genres_include, genres_exclude, min_score, media_t
         requestedLimit: limit,
         initialOffset: offset,
       });
-      const body = formatAnimeRanking(items, { next: meta.hasMorePages ? "yes" : undefined });
-      if (meta.activeFilters.length > 0) {
+      const filtered = meta.activeFilters.length > 0;
+      const body = formatAnimeRanking(items, { next: !filtered && meta.hasMorePages ? "yes" : undefined });
+      if (filtered) {
         return formatFilterMeta(meta) + "\n\n" + body;
       }
       return body;
@@ -268,8 +272,9 @@ Supports server-side filters: genres_include, genres_exclude, min_score, media_t
         seasonContext: { queriedYear: y, queriedSeason: s },
       });
       const header = `Seasonal Anime: ${s} ${y}\n${"─".repeat(30)}\n\n`;
-      const body = formatAnimeList(items, { next: meta.hasMorePages ? "yes" : undefined });
-      if (meta.activeFilters.length > 0) {
+      const filtered = meta.activeFilters.length > 0;
+      const body = formatAnimeList(items, { next: !filtered && meta.hasMorePages ? "yes" : undefined });
+      if (filtered) {
         return header + formatFilterMeta(meta) + "\n\n" + body;
       }
       return header + body;
@@ -319,11 +324,13 @@ Supports server-side filters: genres_include, genres_exclude, min_score, media_t
         requestedLimit: limit,
         initialOffset: offset,
       });
-      const body = formatMangaList(items, { next: meta.hasMorePages ? "yes" : undefined });
-      if (meta.activeFilters.length > 0) {
-        return formatFilterMeta(meta) + "\n\n" + body;
+      const filtered = meta.activeFilters.length > 0;
+      const body = formatMangaList(items, { next: !filtered && meta.hasMorePages ? "yes" : undefined });
+      const hint = "\n\nTip: For broader discovery (e.g. by genre or popularity), try mal_manga_ranking instead of keyword search.";
+      if (filtered) {
+        return formatFilterMeta(meta) + "\n\n" + body + hint;
       }
-      return body;
+      return body + hint;
     });
   },
 );
@@ -403,8 +410,9 @@ Supports server-side filters: genres_include, genres_exclude, min_score, media_t
         requestedLimit: limit,
         initialOffset: offset,
       });
-      const body = formatMangaRanking(items, { next: meta.hasMorePages ? "yes" : undefined });
-      if (meta.activeFilters.length > 0) {
+      const filtered = meta.activeFilters.length > 0;
+      const body = formatMangaRanking(items, { next: !filtered && meta.hasMorePages ? "yes" : undefined });
+      if (filtered) {
         return formatFilterMeta(meta) + "\n\n" + body;
       }
       return body;
