@@ -18,7 +18,7 @@ This server exposes 7 read-only tools to any MCP-compatible client (Claude Deskt
 
 All tools return human-readable formatted text with scores, genres, synopses, MAL links, and more.
 
-The 5 list-returning tools support **server-side filtering** — genre, score, media type, status, source, and more. The server fetches up to 100 results from MAL and filters client-side, so the AI only sees what matches. This dramatically reduces context pollution for filtered queries.
+The 5 list-returning tools support **server-side filtering** — genre, score, media type, status, source, and more. The server fetches up to 500 results from MAL and filters client-side, so the AI only sees what matches. This dramatically reduces context pollution for filtered queries.
 
 ## Prerequisites
 
@@ -136,7 +136,7 @@ The AI will call the appropriate tool(s) and present the results.
 
 ### Shared Filter Parameters
 
-The 5 list-returning tools (`mal_search_anime`, `mal_anime_ranking`, `mal_anime_seasonal`, `mal_search_manga`, `mal_manga_ranking`) all support server-side filtering. When any filter is active, the server fetches up to 100 results from MAL and returns only those that match.
+The 5 list-returning tools (`mal_search_anime`, `mal_anime_ranking`, `mal_anime_seasonal`, `mal_search_manga`, `mal_manga_ranking`) all support server-side filtering. When any filter is active, the server fetches up to 500 results from MAL and returns only those that match.
 
 **Common filters (all list tools):**
 - `genres_include` (string[]): Only include items with matching genres (case-insensitive). See `genre_mode`.
@@ -159,7 +159,7 @@ The 5 list-returning tools (`mal_search_anime`, `mal_anime_ranking`, `mal_anime_
 
 When filters are active, the output includes a summary line like:
 ```
-Showing 8 results (filtered from 100 scanned, 1 page) | Filters: genres(AND)=Action,Romance, min_score>=7.5
+Showing 8 results (filtered from 500 scanned, 1 page) | Filters: genres(AND)=Action,Romance, min_score>=7.5
 ```
 
 ### mal_search_anime

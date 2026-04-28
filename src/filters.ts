@@ -210,7 +210,7 @@ function buildActiveFilterDescriptions(filters: Record<string, unknown>): string
 
 // ─── Auto-Paginating Filtered Fetch ───
 
-const FILTERED_PAGE_SIZE = 100;
+const FILTERED_PAGE_SIZE = 500;
 
 export async function filteredFetch<T extends { node: FilterableNode }>(options: {
   fetchPage: (limit: number, offset: number) => Promise<MalListResponse<T>>;
@@ -236,7 +236,7 @@ export async function filteredFetch<T extends { node: FilterableNode }>(options:
     };
   }
 
-  // Filters active: single fetch of 100, filter client-side
+  // Filters active: single fetch of 500, filter client-side
   const typedFilters = filters as FilterParams;
   const result = await fetchPage(FILTERED_PAGE_SIZE, initialOffset);
   const matched: T[] = [];
