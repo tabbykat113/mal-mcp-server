@@ -42,7 +42,7 @@ const client = new MalApiClient(MAL_CLIENT_ID);
 
 const server = new McpServer({
   name: "mal-mcp-server",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 // ─── Helper to wrap tool handlers with error handling ───
