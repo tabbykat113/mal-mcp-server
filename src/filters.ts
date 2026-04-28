@@ -6,7 +6,7 @@ import type { MalListResponse, MalPaging } from "./types.js";
 export interface FilterMeta {
   totalScanned: number;
   totalMatched: number;
-  pagesScanned: number;
+  returnedCount: number;
   activeFilters: string[];
   hasMorePages: boolean;
   nextOffset?: number;
@@ -208,7 +208,9 @@ function buildActiveFilterDescriptions(filters: Record<string, unknown>): string
   return parts;
 }
 
-// ─── Auto-Paginating Filtered Fetch ───
+// ─── Filtered Fetch ───
+// One tool call = one API call. Scans one 500-item page, filters client-side,
+// and tracks exact indices so the next call can resume without duplicates.
 
 const FILTERED_PAGE_SIZE = 500;
 
@@ -221,7 +223,7 @@ export async function filteredFetch<T extends { node: FilterableNode }>(options:
 }): Promise<{ items: T[]; meta: FilterMeta }> {
   const { fetchPage, filters, requestedLimit, initialOffset, seasonContext } = options;
 
-  // No filters active: single fetch at user's requested limit (current behavior)
+  // No filters active: single fetch at user's requested limit (passthrough)
   if (!hasActiveFilters(filters)) {
     const result = await fetchPage(requestedLimit, initialOffset);
     return {
@@ -229,39 +231,58 @@ export async function filteredFetch<T extends { node: FilterableNode }>(options:
       meta: {
         totalScanned: result.data.length,
         totalMatched: result.data.length,
-        pagesScanned: 1,
+        returnedCount: result.data.length,
         activeFilters: [],
         hasMorePages: !!result.paging.next,
       },
     };
   }
 
-  // Filters active: single fetch of 500, filter client-side
+  // Filters active: fetch one 500-item page and scan fully for accurate counts
   const typedFilters = filters as FilterParams;
   const result = await fetchPage(FILTERED_PAGE_SIZE, initialOffset);
-  const matched: T[] = [];
 
-  for (const item of result.data) {
-    if (matchesFilters(item.node, typedFilters, seasonContext)) {
-      matched.push(item);
-      if (matched.length >= requestedLimit) break;
+  // Collect ALL matches with their absolute API index
+  const allMatches: { item: T; apiIndex: number }[] = [];
+  for (let i = 0; i < result.data.length; i++) {
+    if (matchesFilters(result.data[i].node, typedFilters, seasonContext)) {
+      allMatches.push({ item: result.data[i], apiIndex: initialOffset + i });
     }
   }
 
-  // Only report more pages if the API says so AND we got a full page back.
-  // If we got fewer than FILTERED_PAGE_SIZE items, the API has no more data
-  // regardless of what paging.next says.
-  const hasMore = !!result.paging.next && result.data.length >= FILTERED_PAGE_SIZE;
+  const returned = allMatches.slice(0, requestedLimit).map((m) => m.item);
+  const returnedCount = returned.length;
+  const totalMatched = allMatches.length;
+
+  // Determine if the API itself has more data
+  const apiHasMore = !!result.paging.next && result.data.length >= FILTERED_PAGE_SIZE;
+
+  // hasMorePages is true if either:
+  // 1. There are more matches in the current scan we didn't return, OR
+  // 2. The API has more pages to scan
+  const hasMorePages = totalMatched > returnedCount || apiHasMore;
+
+  // nextOffset logic:
+  // - If there are more matches in current scan: resume right after the last returned match
+  // - Else if API has more pages: jump to the next page boundary
+  // - Else: undefined (nothing more to scan)
+  let nextOffset: number | undefined;
+  if (totalMatched > returnedCount) {
+    const lastReturnedIndex = allMatches[returnedCount - 1].apiIndex;
+    nextOffset = lastReturnedIndex + 1;
+  } else if (apiHasMore) {
+    nextOffset = initialOffset + result.data.length;
+  }
 
   return {
-    items: matched.slice(0, requestedLimit),
+    items: returned,
     meta: {
       totalScanned: result.data.length,
-      totalMatched: matched.length,
-      pagesScanned: 1,
+      totalMatched,
+      returnedCount,
       activeFilters: buildActiveFilterDescriptions(filters),
-      hasMorePages: hasMore,
-      nextOffset: hasMore ? initialOffset + result.data.length : undefined,
+      hasMorePages,
+      nextOffset,
     },
   };
 }

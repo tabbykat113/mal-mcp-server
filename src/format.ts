@@ -286,10 +286,33 @@ export function formatMangaDetails(manga: MalMangaNode): string {
 
 export function formatFilterMeta(meta: FilterMeta): string {
   const filterStr = meta.activeFilters.join(", ");
-  const pages = meta.pagesScanned > 1 ? `${meta.pagesScanned} pages` : "1 page";
-  const showing = `Showing ${meta.totalMatched} results (filtered from ${meta.totalScanned} scanned, ${pages})`;
-  const more = meta.hasMorePages
-    ? ` | More results may exist beyond scanned pages (use offset=${meta.nextOffset}).`
-    : "";
-  return `${showing} | Filters: ${filterStr}${more}`;
+  const lines: string[] = [];
+
+  // Main summary line
+  lines.push(
+    `Found ${meta.totalMatched} results out of ${meta.totalScanned} scanned, showing ${meta.returnedCount}` +
+      (meta.activeFilters.length > 0 ? ` | Filters: ${filterStr}` : "")
+  );
+
+  // Context-aware hints
+  if (meta.hasMorePages && meta.nextOffset !== undefined) {
+    if (meta.totalMatched > meta.returnedCount) {
+      // More matches exist in the already-scanned area
+      lines.push(
+        `More matches found in scanned items. Use offset=${meta.nextOffset} to continue, or increase limit to see more from this scan.`
+      );
+    } else if (meta.totalMatched === 0) {
+      // Zero matches in current scan — suggest next steps
+      lines.push(
+        `No matches in scanned items. More data available to scan — use offset=${meta.nextOffset} to search the next section, or try adjusting your filters.`
+      );
+    } else {
+      // All matches from current scan returned, but API has more pages
+      lines.push(
+        `More items available to scan — use offset=${meta.nextOffset} to search the next page of results.`
+      );
+    }
+  }
+
+  return lines.join("\n");
 }

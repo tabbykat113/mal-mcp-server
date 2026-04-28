@@ -96,7 +96,7 @@ Args:
   - offset: Pagination offset (default: 0)
   - nsfw: Include NSFW results (default: false)
 
-Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, source, min_members. When filters are active, auto-paginates up to 150 results internally to fill your requested limit.
+Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, source, min_members. When filters are active, the server fetches up to 500 results and filters client-side so the AI only sees matching items.
 
 Examples:
   - "cute animals anime" -> finds anime matching those keywords
@@ -300,7 +300,7 @@ Args:
   - offset: Pagination offset (default: 0)
   - nsfw: Include NSFW results (default: false)
 
-Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, min_members. When filters are active, auto-paginates up to 150 results internally to fill your requested limit.`,
+Supports server-side filters: genres_include, genres_exclude, min_score, media_type, status, min_members. When filters are active, the server fetches up to 500 results and filters client-side so the AI only sees matching items.`,
     inputSchema: {
       query: z.string().min(2).max(200).describe("Search text (manga title or keywords)"),
       limit: z.number().int().min(1).max(100).default(10).describe("Max results (default: 10)"),

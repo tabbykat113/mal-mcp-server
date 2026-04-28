@@ -136,7 +136,7 @@ The AI will call the appropriate tool(s) and present the results.
 
 ### Shared Filter Parameters
 
-The 5 list-returning tools (`mal_search_anime`, `mal_anime_ranking`, `mal_anime_seasonal`, `mal_search_manga`, `mal_manga_ranking`) all support server-side filtering. When any filter is active, the server fetches up to 500 results from MAL and returns only those that match.
+The 5 list-returning tools (`mal_search_anime`, `mal_anime_ranking`, `mal_anime_seasonal`, `mal_search_manga`, `mal_manga_ranking`) all support server-side filtering. When any filter is active, the server fetches one 500-item page from the MAL API, filters it client-side, and returns matching results. One tool call = one API call. The bot controls how deep to scan by passing `offset` on subsequent calls.
 
 **Common filters (all list tools):**
 - `genres_include` (string[]): Only include items with matching genres (case-insensitive). See `genre_mode`.
@@ -157,9 +157,16 @@ The 5 list-returning tools (`mal_search_anime`, `mal_anime_ranking`, `mal_anime_
 - `media_type` (string[]): `"manga"`, `"novel"`, `"one_shot"`, `"doujinshi"`, `"manhwa"`, `"manhua"`, `"oel"`
 - `status` (string): `"currently_publishing"`, `"finished"`, `"not_yet_published"`
 
-When filters are active, the output includes a summary line like:
+When filters are active, the output includes a summary and context-aware hints:
 ```
-Showing 8 results (filtered from 500 scanned, 1 page) | Filters: genres(AND)=Action,Romance, min_score>=7.5
+Found 8 results out of 500 scanned, showing 5 | Filters: genres(AND)=Action,Romance, min_score>=7.5
+More matches found in scanned items. Use offset=234 to continue, or increase limit to see more from this scan.
+```
+
+If no matches are found in the scanned area but more API data exists:
+```
+Found 0 results out of 500 scanned, showing 0 | Filters: min_score>=9.0
+No matches in scanned items. More data available to scan — use offset=500 to search the next section, or try adjusting your filters.
 ```
 
 ### mal_search_anime
